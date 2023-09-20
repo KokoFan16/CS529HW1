@@ -11,8 +11,19 @@ export default function Whitehat(props){
     const [svg, height, width, tTip] = useSVGCanvas(d3Container);
     var isZoomed = false;
 
+    // console.log("props.cityPop", props.cityPop);
+    const cityPopDic = {};
+    for (var d in props.cityPop){
+        // console.log(props.cityPop[d]);
+        var cityname = props.cityPop[d].city;
+        cityPopDic[cityname] = props.cityPop[d].total_population;
+    }
+    // console.log("cityPopDic", cityPopDic);
+
     //TODO: change the line below to change the size of the white-hat maximum bubble size
+    // const maxRadius = width/100;
     const maxRadius = width/100;
+    const margin = 50;
 
     //albers usa projection puts alaska in the corner
     //this automatically convert latitude and longitude to coordinates on the svg canvas
@@ -38,7 +49,7 @@ export default function Whitehat(props){
             const stateData = props.data.states;
 
             //EDIT THIS TO CHANGE WHAT IS USED TO ENCODE COLOR
-            const getEncodedFeature = d => d.count
+            const getEncodedFeature = d => d.count/d.population * 100000;
 
             //this section of code sets up the colormap
             const stateCounts = Object.values(stateData).map(getEncodedFeature);
@@ -55,7 +66,17 @@ export default function Whitehat(props){
 
             //TODO: EDIT HERE TO CHANGE THE COLOR SCHEME
             //this function takes a number 0-1 and returns a color
-            const colorMap = d3.interpolateRdYlGn;
+            // const colorMap = d3.interpolateRdYlGn; d3.scaleLinear()
+            // const colorMap = d3.scaleLog()
+            //     .range(['#6baed6','white']);
+               // const colorMap = d3.scalePow([0, 100], ["#6baed6", "white"]).exponent(2);
+            const colorMap = d3.scaleLinear()
+                // .domain([stateMin, stateMax])
+                .range(['white','#084594'].reverse());
+
+            // const colorMap = d3.scaleOrdinal(['#f7fbff','#deebf7','#c6dbef','#9ecae1','#6baed6','#4292c6','#2171b5','#084594'])
+            // .domain([1, 2, 3, 4, 5, 6, 9,16]);
+    
 
             //this set of functions extracts the features given the state name from the geojson
             function getCount(name){
@@ -67,6 +88,17 @@ export default function Whitehat(props){
                 }
                 return getEncodedFeature(entry[0]);
             }
+
+            function get_attris(name){
+                //map uses full name, dataset uses abreviations
+                name = cleanString(name);
+                let entry = stateData.filter(d=>d.state===name);
+                if(entry === undefined | entry.length < 1){
+                    return 0
+                }
+                return [entry[0].count, entry[0].population, entry[0].male_count];
+            }
+
             function getStateVal(name){
                 let count = getCount(name);
                 let val = stateScale(count);
@@ -91,7 +123,7 @@ export default function Whitehat(props){
                 .attr('d',geoGenerator)
                 .attr('fill',getStateColor)
                 .attr('stroke','black')
-                .attr('stroke-width',.1)
+                .attr('stroke-width',0.2)
                 .on('mouseover',(e,d)=>{
                     let state = cleanString(d.properties.NAME);
                     //this updates the brushed state
@@ -99,9 +131,14 @@ export default function Whitehat(props){
                         props.setBrushedState(state);
                     }
                     let sname = d.properties.NAME;
-                    let count = getCount(sname);
-                    let text = sname + '</br>'
-                        + 'Gun Deaths: ' + count;
+                    let count = getCount(sname).toFixed(3);
+                    let attrs = get_attris(sname);
+                    let text = 'State: ' + sname + '</br>'
+                        + '</br>'
+                        + 'Gun Deaths: ' + attrs[0] + '</br>'
+                        + 'Male Deaths: ' + attrs[2] + '</br>'
+                        + 'Population: ' + attrs[1] + '</br>'
+                        + 'Deaths/Population: ' + count + '</br>';
                     tTip.html(text);
                 }).on('mousemove',(e)=>{
                     //see app.js for the helper function that makes this easier
@@ -115,10 +152,21 @@ export default function Whitehat(props){
             //TODO: replace or edit the code below to change the city marker being used. Hint: think of the cityScale range (perhaps use area rather than radius). 
             //draw markers for each city
             const cityData = props.data.cities
+            // const range
             const cityMax = d3.max(cityData.map(d=>d.count));
-            const cityScale = d3.scaleLinear()
-                .domain([0,cityMax])
-                .range([0,maxRadius]);
+            // const cityScale = d3.scaleLinear()
+            // const cityScale = d3.scaleSqrt()
+            const cityScale = d3.scaleSqrt()
+                .domain([0, cityMax])
+                .range([0, maxRadius]); // 
+
+            // console.log("keys:", Object.keys(cityPopDic));
+
+            // for (let d in cityData) {
+            //     if (cityPopDic[cityData[d].city] !== undefined){
+            //         console.log('city: ', cityPopDic[cityData[d].id]);
+            //     }
+            // }
 
             mapGroup.selectAll('.city').remove();
 
@@ -127,11 +175,33 @@ export default function Whitehat(props){
             mapGroup.selectAll('.city')
                 .data(cityData).enter()
                 .append('circle').attr('class','city')
-                .attr('id',d=>d.key)
+                .attr('id',d=>d.city)
                 .attr('cx',d=> projection([d.lng,d.lat])[0])
                 .attr('cy',d=> projection([d.lng,d.lat])[1])
                 .attr('r',d=>cityScale(d.count))
-                .attr('opacity',.5);                
+                .attr('fill', '#9C240A')
+                .attr('opacity',.4)
+                .attr('stroke', 'black')
+                .attr('stroke-width', 0)
+                .on('mouseover',(e,d)=>{
+                    let city = cleanString(d.city);
+                    //this updates the brushed state
+                    if(props.brushedState !== city){
+                        props.setBrushedState(city);
+                    }
+                    let text = 'City: ' + d.city + '</br>'
+                        + '</br>'
+                        + 'Gun-Deaths: ' + d.count + '</br>'
+                        + 'Male Deaths: ' + d.male_count + '</br>'
+                        + 'Female Deaths: ' + (d.count - d.male_count) + '</br>';
+                    tTip.html(text);
+                }).on('mousemove',(e)=>{
+                    //see app.js for the helper function that makes this easier
+                    props.ToolTip.moveTTipEvent(tTip,e);
+                }).on('mouseout',(e,d)=>{
+                    props.setBrushedState();
+                    props.ToolTip.hideTTip(tTip);
+                });               
 
             
             //draw a color legend, automatically scaled based on data extents
@@ -142,11 +212,12 @@ export default function Whitehat(props){
                 let legendX = bounds.x + 10 + bounds.width;
                 const barWidth = Math.min((width - legendX)/3,40);
                 const fontHeight = Math.min(barWidth/2,16);
-                let legendY = bounds.y + 2*fontHeight;
+                // let legendY = bounds.y + 2*fontHeight;
+                let legendY = bounds.y;
                 
                 let colorLData = [];
                 //OPTIONAL: EDIT THE VALUES IN THE ARRAY TO CHANGE THE NUMBER OF ITEMS IN THE COLOR LEGEND
-                for(let ratio of [0.1,.2,.3,.4,.5,.6,.7,.8,.9,.99]){
+                for(let ratio of [0.1,.2,.3,.4,.5,.6,.8,.99]){
                     let val = (1-ratio)*stateMin + ratio*stateMax;
                     let scaledVal = stateScale(val);
                     let color = colorMap(scaledVal);
@@ -170,13 +241,14 @@ export default function Whitehat(props){
                     .attr('y',d=>d.y)
                     .attr('fill',d=>d.color)
                     .attr('height',barHeight)
-                    .attr('width',barWidth);
+                    .attr('width',barWidth)
+                    .attr('transform', 'translate(' + 0 + ", " + margin*1.5 + ')' );
     
                 svg.selectAll('.legendText').remove();
                 const legendTitle = {
-                    'x': legendX - barWidth,
-                    'y': bounds.y,
-                    'text': 'Gun Deaths' 
+                    'x': legendX - 3*margin,
+                    'y': legendY,
+                    'text': 'Gun Deaths per 100,000 Population'
                 }
                 svg.selectAll('.legendText')
                     .data([legendTitle].concat(colorLData)).enter()
@@ -184,7 +256,8 @@ export default function Whitehat(props){
                     .attr('x',d=>d.x+barWidth+5)
                     .attr('y',d=>d.y+barHeight/2 + fontHeight/4)
                     .attr('font-size',(d,i) => i == 0? 1.2*fontHeight:fontHeight)
-                    .text(d=>d.text);
+                    .text(d=>d.text)
+                    .attr('transform', 'translate(' + 0 + ", " + margin*1.5 + ')' );
             }
 
             drawLegend();
@@ -261,11 +334,16 @@ export default function Whitehat(props){
             const isBrushed = props.brushedState !== undefined;
             mapGroupSelection.selectAll('.state')
                 .attr('opacity',isBrushed? .4:.8)
-                .attr('strokeWidth',isBrushed? 1:2);
+                .attr('stroke-width',isBrushed? 0.2:0.5);
+
+            mapGroupSelection.selectAll('.city')
+                .attr('opacity',isBrushed? .2:.4)
+                .attr('stroke-width',isBrushed? 0.2:0.5);
+
             if(isBrushed){
                 mapGroupSelection.select('#'+props.brushedState)
                     .attr('opacity',1)
-                    .attr('strokeWidth',3);
+                    .attr('stroke-width',1);
             }
         }
     },[mapGroupSelection,props.brushedState]);

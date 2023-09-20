@@ -15,6 +15,7 @@ function App() {
   //state for the data, since it loads asynchronously
   const [map, setMap] = useState();
   const [gunData, setGunData] = useState();
+  const [cityData, setCityData] = useState();
 
   //we put some states (brushing, zooming)
   //at the top level and pass setZoomedState etc to the map
@@ -22,6 +23,7 @@ function App() {
   const [zoomedState,setZoomedState] = useState();
   const [selectedStuff,setSelectedStuff] = useState();
   const [brushedState,setBrushedState] = useState();
+  // const [brushedRect,setBrushedRect] = useState();
 
   //filter for the linked view in whitehat stats
   const [sortKey,setSortKey] = useState('age');
@@ -40,8 +42,17 @@ function App() {
   async function fetchGunData(){
     fetch('processed_gundeaths_data.json').then(d => {
       d.json().then(gd=>{
-        console.log('gundata',gd)
+        // console.log('gundata',gd)
         setGunData(gd);
+      })
+    })
+  }
+
+  async function fetchCityData(){
+    fetch('us-cities-demographics.json').then(d => {
+      d.json().then(cd=>{
+        // console.log('citydata',cd)
+        setCityData(cd);
       })
     })
   }
@@ -50,7 +61,8 @@ function App() {
   //fetch data, called only once
   useEffect(()=>{
     fetchMap();
-    fetchGunData()
+    fetchGunData();
+    fetchCityData();
   },[])
 
  
@@ -66,12 +78,15 @@ function App() {
                   <Whitehat
                     map={map}
                     data={gunData}
+                    cityPop={cityData}
                     ToolTip={ToolTip}
                     zoomedState={zoomedState}
                     setSelectedStuff={setSelectedStuff}
                     setZoomedState={setZoomedState}
                     brushedState={brushedState}
                     setBrushedState={setBrushedState}
+                    // brushedRect={brushedRect}
+                    // setBrushedRect={setBrushedRect}
                   />
               </div>
               <div 
@@ -94,6 +109,8 @@ function App() {
                   ToolTip={ToolTip}
                   brushedState={brushedState}
                   setBrushedState={setBrushedState}
+                  // brushedRect={brushedRect}
+                  // setBrushedRect={setBrushedRect}
                   zoomedState={zoomedState}
                 />     
               </div>   
